@@ -1,21 +1,27 @@
 import 'package:flame/components.dart';
+import 'package:flame/collisions.dart';
 import 'package:flutter/material.dart';
+import 'dart:ui';
+import 'obstacle.dart';
 
-class DataPacket extends PositionComponent {
-  static const double size_val = 60.0;
-  int currentColumn = 2; // Start in middle (0 to 4)
+class DataPacket extends PositionComponent with CollisionCallbacks {
+  static const double sizeVal = 60.0;
+  int currentColumn = 2; 
   double targetX = 0;
+  final Function onHit;
+
+  DataPacket({required this.onHit});
 
   @override
   Future<void> onLoad() async {
-    size = Vector2.all(size_val);
+    size = Vector2.all(sizeVal);
     anchor = Anchor.center;
+    add(RectangleHitbox());
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    // Smooth movement to target column
     x = lerpDouble(x, targetX, 0.2) ?? x;
   }
 
@@ -24,6 +30,15 @@ class DataPacket extends PositionComponent {
     targetX = (currentColumn * columnWidth) + (columnWidth / 2);
   }
 
+  @override
+  void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
+    super.onCollisionStart(intersectionPoints, other);
+    if (other is DataCorruption) {
+      onHit();
+    }
+  }
+
+  @override
   void render(Canvas canvas) {
     final paint = Paint()
       ..color = Colors.cyanAccent

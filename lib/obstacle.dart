@@ -1,14 +1,17 @@
 import 'package:flame/components.dart';
+import 'package:flame/collisions.dart';
 import 'package:flutter/material.dart';
 
-class DataCorruption extends PositionComponent {
+class DataCorruption extends PositionComponent with CollisionCallbacks {
   final double speed;
   
-  DataCorruption({required Vector2 position, required this.speed}) : super(position: position, size: Vector2.all(50));
+  DataCorruption({required Vector2 position, required this.speed}) 
+      : super(position: position, size: Vector2.all(50));
 
   @override
   Future<void> onLoad() async {
     anchor = Anchor.center;
+    add(CircleHitbox());
   }
 
   @override
@@ -16,7 +19,6 @@ class DataCorruption extends PositionComponent {
     super.update(dt);
     y += speed * dt;
     
-    // Remove if off screen
     if (y > 2000) {
       removeFromParent();
     }
