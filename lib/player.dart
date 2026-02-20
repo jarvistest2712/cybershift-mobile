@@ -9,6 +9,9 @@ class DataPacket extends PositionComponent with CollisionCallbacks {
   int currentColumn = 2; 
   double targetX = 0;
   final Function onHit;
+  
+  int shieldPoints = 0;
+  double speedMultiplier = 1.0;
 
   DataPacket({required this.onHit});
 
@@ -22,7 +25,8 @@ class DataPacket extends PositionComponent with CollisionCallbacks {
   @override
   void update(double dt) {
     super.update(dt);
-    x = lerpDouble(x, targetX, 0.2) ?? x;
+    // speedMultiplier affects how fast it lerps to target column
+    x = lerpDouble(x, targetX, 0.2 * speedMultiplier) ?? x;
   }
 
   void move(int direction, double columnWidth) {
@@ -34,7 +38,12 @@ class DataPacket extends PositionComponent with CollisionCallbacks {
   void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
     if (other is DataCorruption) {
-      onHit();
+      if (shieldPoints > 0) {
+        shieldPoints--;
+        other.removeFromParent(); // Destroy the obstacle
+      } else {
+        onHit();
+      }
     }
   }
 
@@ -44,6 +53,15 @@ class DataPacket extends PositionComponent with CollisionCallbacks {
       ..color = Colors.cyanAccent
       ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 10);
     
+    // Draw Shield if active
+    if (shieldPoints > 0) {
+      canvas.drawCircle(
+        Offset(size.x/2, size.y/2), 
+        size.x, 
+        Paint()..color = Colors.cyanAccent.withOpacity(0.3)
+      );
+    }
+
     canvas.drawRect(size.toRect(), paint);
     canvas.drawRect(size.toRect(), Paint()..color = Colors.cyanAccent);
   }

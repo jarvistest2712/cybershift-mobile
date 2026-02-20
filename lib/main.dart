@@ -5,14 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'player.dart';
 import 'obstacle.dart';
+import 'store.dart';
 
-void main() {
+late StoreService storeService;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  storeService = StoreService();
+  await storeService.init();
+  
   runApp(
     GameWidget(
       game: CyberShiftGame(),
       overlayBuilderMap: {
         'MainMenu': (context, game) => MainMenu(game: game as CyberShiftGame),
         'GameOver': (context, game) => GameOver(game: game as CyberShiftGame),
+        'Store': (context, game) => UpgradeStore(game: game as CyberShiftGame),
       },
       initialActiveOverlays: const ['MainMenu'],
     ),
@@ -30,34 +38,36 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
   Future<void> onLoad() async {
     columnWidth = size.x / 5;
     player = DataPacket(onHit: gameOver);
-    player.position = Vector2(size.x / 2, size.y * 0.8);
-    player.targetX = player.x;
   }
 
   void startGame() {
-    // Clear existing obstacles
     children.whereType<DataCorruption>().forEach((child) => child.removeFromParent());
     
     isPlaying = true;
     score = 0;
     spawnTimer = 0;
     
+    // Apply Upgrades
+    player.shieldPoints = storeService.shieldLevel;
+    player.speedMultiplier = 1.0 + (storeService.speedLevel * 0.2);
+    
     player.currentColumn = 2;
     player.position = Vector2(size.x / 2, size.y * 0.8);
     player.targetX = player.x;
     
-    if (!children.contains(player)) {
-      add(player);
-    }
+    if (!children.contains(player)) add(player);
     
     overlays.remove('MainMenu');
     overlays.remove('GameOver');
+    overlays.remove('Store');
     resumeEngine();
   }
 
   void gameOver() {
     isPlaying = false;
     pauseEngine();
+    // Save score as bits
+    storeService.addBits(score);
     overlays.add('GameOver');
   }
 
@@ -86,7 +96,6 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
   @override
   void onTapDown(TapDownInfo info) {
     if (!isPlaying) return;
-    
     if (info.eventPosition.global.x < size.x / 2) {
       player.move(-1, columnWidth);
     } else {
@@ -100,12 +109,8 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
     if (isPlaying) {
       final textPainter = TextPainter(
         text: TextSpan(
-          text: 'SCORE: $score',
-          style: GoogleFonts.orbitron(
-            color: Colors.white, 
-            fontSize: 24, 
-            fontWeight: FontWeight.bold
-          ),
+          text: 'BITS: $score',
+          style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -126,39 +131,81 @@ class MainMenu extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'CYBERSHIFT',
-              style: GoogleFonts.orbitron(
-                fontSize: 48,
-                color: Colors.cyanAccent,
-                fontWeight: FontWeight.bold,
-                shadows: [const Shadow(color: Colors.cyan, blurRadius: 25)],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'THE ROGUE DATA',
-              style: GoogleFonts.orbitron(color: Colors.cyan, fontSize: 16),
-            ),
+            Text('CYBERSHIFT', style: GoogleFonts.orbitron(fontSize: 48, color: Colors.cyanAccent, fontWeight: FontWeight.bold, shadows: [const Shadow(color: Colors.cyan, blurRadius: 25)])),
             const SizedBox(height: 60),
-            GestureDetector(
-              onTap: () => game.startGame(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.cyanAccent, width: 2),
-                  boxShadow: [
-                    BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 10)
-                  ]
-                ),
-                child: Text(
-                  'INITIATE ESCAPE',
-                  style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 20),
-                ),
-              ),
-            ),
+            _menuButton('INITIATE ESCAPE', () => game.startGame()),
+            const SizedBox(height: 20),
+            _menuButton('UPGRADE SYSTEM', () => game.overlays.add('Store')),
+            const SizedBox(height: 40),
+            Text('STORED BITS: ${storeService.bits}', style: GoogleFonts.orbitron(color: Colors.cyan, fontSize: 16)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _menuButton(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+        decoration: BoxDecoration(border: Border.all(color: Colors.cyanAccent, width: 2)),
+        child: Text(label, style: GoogleFonts.orbitron(color: Colors.cyanAccent, fontSize: 20)),
+      ),
+    );
+  }
+}
+
+class UpgradeStore extends StatefulWidget {
+  final CyberShiftGame game;
+  const UpgradeStore({super.key, required this.game});
+
+  @override
+  State<UpgradeStore> createState() => _UpgradeStoreState();
+}
+
+class _UpgradeStoreState extends State<UpgradeStore> {
+  final List<UpgradeItem> items = [
+    UpgradeItem(name: 'DATA SHIELD', key: StoreService.keyShieldLevel, baseCost: 100, description: 'Survive one collision per level'),
+    UpgradeItem(name: 'SIGNAL BOOST', key: StoreService.keySpeedLevel, baseCost: 150, description: 'Faster lateral movement'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.9),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: Text('SYSTEM UPGRADES', style: GoogleFonts.orbitron(color: Colors.cyanAccent)),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.cyanAccent), onPressed: () => widget.game.overlays.remove('Store')),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text('AVAILABLE BITS: ${storeService.bits}', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 20)),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final level = storeService.box.get(item.key, defaultValue: 0);
+                final cost = item.getCost(level);
+                return ListTile(
+                  title: Text(item.name, style: GoogleFonts.orbitron(color: Colors.cyanAccent)),
+                  subtitle: Text('${item.description}\nLevel: $level', style: const TextStyle(color: Colors.grey)),
+                  trailing: ElevatedButton(
+                    onPressed: storeService.bits >= cost ? () {
+                      setState(() => storeService.buyUpgrade(item.key, cost));
+                    } : null,
+                    child: Text('BUY: $cost'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -175,37 +222,25 @@ class GameOver extends StatelessWidget {
       body: Center(
         child: Container(
           padding: const EdgeInsets.all(40),
-          decoration: BoxDecoration(
-            color: Colors.black,
-            border: Border.all(color: Colors.redAccent, width: 2),
-            boxShadow: [
-              BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 30)
-            ]
-          ),
+          decoration: BoxDecoration(color: Colors.black, border: Border.all(color: Colors.redAccent, width: 2)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'DATA CORRUPTED',
-                style: GoogleFonts.orbitron(color: Colors.redAccent, fontSize: 28, fontWeight: FontWeight.bold),
-              ),
+              Text('DATA CORRUPTED', style: GoogleFonts.orbitron(color: Colors.redAccent, fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              Text(
-                'FINAL SCORE: ${game.score}',
-                style: GoogleFonts.orbitron(color: Colors.white, fontSize: 18),
-              ),
+              Text('EARNED BITS: ${game.score}', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 18)),
               const SizedBox(height: 40),
-              TextButton(
-                onPressed: () => game.startGame(),
-                child: Text(
-                  '[ RETRY_CONNECTION ]',
-                  style: GoogleFonts.orbitron(color: Colors.white, fontSize: 16),
-                ),
-              ),
+              _actionButton('RETRY', () => game.startGame()),
+              const SizedBox(height: 10),
+              _actionButton('STORE', () => game.overlays.add('Store')),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _actionButton(String label, VoidCallback onTap) {
+    return TextButton(onPressed: onTap, child: Text('[ $label ]', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 16)));
   }
 }
