@@ -8,12 +8,18 @@ import 'obstacle.dart';
 import 'store.dart';
 import 'effects.dart';
 
-late StoreService storeService;
+StoreService? _storeService;
+StoreService get storeService {
+  if (_storeService == null) {
+    throw Exception("StoreService not initialized. Call init() first.");
+  }
+  return _storeService!;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  storeService = StoreService();
-  await storeService.init();
+  _storeService = StoreService();
+  await _storeService!.init();
   
   runApp(
     GameWidget(
@@ -34,6 +40,7 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
   double spawnTimer = 0;
   int score = 0;
   bool isPlaying = false;
+  bool _gameOverTriggered = false;
 
   @override
   Future<void> onLoad() async {
@@ -45,10 +52,10 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
     children.whereType<DataCorruption>().forEach((child) => child.removeFromParent());
     
     isPlaying = true;
+    _gameOverTriggered = false;
     score = 0;
     spawnTimer = 0;
     
-    // Apply Upgrades
     player.shieldPoints = storeService.shieldLevel;
     player.speedMultiplier = 1.0 + (storeService.speedLevel * 0.2);
     
@@ -65,6 +72,9 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
   }
 
   void gameOver() {
+    if (_gameOverTriggered) return;
+    _gameOverTriggered = true;
+    
     isPlaying = false;
     add(EffectFactory.createExplosion(player.position));
     pauseEngine();
@@ -138,7 +148,12 @@ class MainMenu extends StatelessWidget {
             const SizedBox(height: 20),
             _menuButton('UPGRADE SYSTEM', () => game.overlays.add('Store')),
             const SizedBox(height: 40),
-            Text('STORED BITS: ${storeService.bits}', style: GoogleFonts.orbitron(color: Colors.cyan, fontSize: 16)),
+            ValueListenableBuilder<int>(
+              valueListenable: storeService.bitsNotifier,
+              builder: (context, bits, child) {
+                return Text('STORED BITS: $bits', style: GoogleFonts.orbitron(color: Colors.cyan, fontSize: 16));
+              },
+            ),
           ],
         ),
       ),
@@ -184,7 +199,12 @@ class _UpgradeStoreState extends State<UpgradeStore> {
         children: [
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Text('AVAILABLE BITS: ${storeService.bits}', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 20)),
+            child: ValueListenableBuilder<int>(
+              valueListenable: storeService.bitsNotifier,
+              builder: (context, bits, child) {
+                return Text('AVAILABLE BITS: $bits', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 20));
+              },
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -196,11 +216,16 @@ class _UpgradeStoreState extends State<UpgradeStore> {
                 return ListTile(
                   title: Text(item.name, style: GoogleFonts.orbitron(color: Colors.cyanAccent)),
                   subtitle: Text('${item.description}\nLevel: $level', style: const TextStyle(color: Colors.grey)),
-                  trailing: ElevatedButton(
-                    onPressed: storeService.bits >= cost ? () {
-                      setState(() => storeService.buyUpgrade(item.key, cost));
-                    } : null,
-                    child: Text('BUY: $cost'),
+                  trailing: ValueListenableBuilder<int>(
+                    valueListenable: storeService.bitsNotifier,
+                    builder: (context, bits, child) {
+                      return ElevatedButton(
+                        onPressed: bits >= cost ? () {
+                          setState(() => storeService.buyUpgrade(item.key, cost));
+                        } : null,
+                        child: Text('BUY: $cost'),
+                      );
+                    },
                   ),
                 );
               },

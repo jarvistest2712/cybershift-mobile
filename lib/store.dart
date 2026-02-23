@@ -1,18 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class StoreService {
   static const String boxName = 'playerData';
   
-  // Keys
   static const String keyBits = 'bits';
   static const String keyShieldLevel = 'shieldLevel';
   static const String keySpeedLevel = 'speedLevel';
 
   late Box box;
+  final ValueNotifier<int> bitsNotifier = ValueNotifier<int>(0);
 
   Future<void> init() async {
     await Hive.initFlutter();
     box = await Hive.openBox(boxName);
+    bitsNotifier.value = bits;
   }
 
   int get bits => box.get(keyBits, defaultValue: 0);
@@ -20,7 +22,9 @@ class StoreService {
   int get speedLevel => box.get(keySpeedLevel, defaultValue: 0);
 
   void addBits(int amount) {
-    box.put(keyBits, bits + amount);
+    int newAmount = bits + amount;
+    box.put(keyBits, newAmount);
+    bitsNotifier.value = newAmount;
   }
 
   bool buyUpgrade(String key, int cost) {
