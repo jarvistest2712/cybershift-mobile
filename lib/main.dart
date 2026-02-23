@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'player.dart';
 import 'obstacle.dart';
 import 'store.dart';
+import 'effects.dart';
 
 late StoreService storeService;
 
@@ -65,8 +66,8 @@ class CyberShiftGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   void gameOver() {
     isPlaying = false;
+    add(EffectFactory.createExplosion(player.position));
     pauseEngine();
-    // Save score as bits
     storeService.addBits(score);
     overlays.add('GameOver');
   }

@@ -11,11 +11,13 @@ A fast-paced offline mobile experience where the player controls a rogue data pa
 - **State Management:** Flame Components
 - **Persistence:** [Hive](https://pub.dev/packages/hive) (for offline rogue-lite upgrades)
 
-## Features (Planned)
-- [ ] Procedural Level Generation
-- [ ] Shift Mechanics (Phase through matching colors)
-- [ ] Persistent Upgrade Shop
-- [ ] Neon Synthwave Aesthetic
+## Features (Complete ✅)
+- [x] Procedural Level Generation
+- [x] Shift Mechanics (Phase through matching colors)
+- [x] Persistent Upgrade Shop
+- [x] Neon Synthwave Aesthetic
+- [x] Particle Effects & Visual Feedback
+- [x] Power-up System (X2 Bits, Shields)
 
 ## Setup
 1. Install Flutter SDK.
